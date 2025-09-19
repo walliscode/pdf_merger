@@ -205,3 +205,11 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Application specific
+# Temporary files and test data
+test_*.pdf
+merged_*.pdf
+combined_*.pdf
+*_merged_*.pdf
+*_combined_*.pdf
