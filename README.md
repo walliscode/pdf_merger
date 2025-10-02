@@ -6,7 +6,7 @@ A Python application for merging PDF files in subdirectories based on user-defin
 
 - **GUI Interface**: User-friendly tkinter-based graphical interface
 - **Command-line Interface**: Full-featured CLI for automation and scripting
-- **Component-Based Merging**: Configure specific file components (e.g., beginning, middle, end) for each directory
+- **Filename-Based Merging**: Configure specific filenames (without .pdf) that must be present for each directory
 - **Flexible File Patterns**: Support for glob patterns to specify which files to merge
 - **Customizable Output Names**: Template-based output naming with date/time placeholders
 - **Preview Mode**: See what will be merged before performing the operation
@@ -54,9 +54,9 @@ The GUI provides:
 1. Select your main directory
 2. Check "Use Component Mode"
 3. Click "Configure Components"
-4. For each subdirectory, enter component names separated by commas (e.g., `beginning, middle, end`)
+4. For each subdirectory, enter filenames (without .pdf) separated by commas (e.g., `intro, body, conclusion`)
 5. Click "Save"
-6. Use Preview or Merge PDFs - directories without all components will be skipped
+6. Use Preview or Merge PDFs - directories without all required files will be skipped
 
 ### Command-line Mode
 
@@ -80,9 +80,9 @@ python3 cli.py /path/to/main/directory --verbose --stats
 #### Component Mode (CLI)
 
 ```bash
-# Configure components for directories
-python3 cli.py --set-components "Reports:beginning,middle,end"
-python3 cli.py --set-components "Invoices:intro,body,summary"
+# Configure filenames for directories (without .pdf extension)
+python3 cli.py --set-components "Reports:intro,body,conclusion"
+python3 cli.py --set-components "Invoices:invoice_intro,invoice_body,invoice_summary"
 
 # List all saved configurations
 python3 cli.py --list-configs
@@ -95,9 +95,9 @@ python3 cli.py /path/to/main/directory --component-mode --verbose
 ```
 
 Component mode will:
-- Only merge directories where ALL configured components are found
-- Merge files in the order specified by component configuration
-- Skip directories with missing components (with clear messages)
+- Only merge directories where ALL configured filenames are found
+- Merge files in the order specified by configuration
+- Skip directories with missing files (with clear messages)
 - Continue processing remaining directories even if one fails
 
 ### File Patterns
@@ -124,43 +124,42 @@ Examples:
 
 ### Component Mode
 
-Component mode allows you to define specific file name patterns (components) that must be present in each directory before merging. This ensures complete document sets are merged together.
+Component mode allows you to define specific filenames (without .pdf extension) that must be present in each directory before merging. This ensures complete document sets are merged together.
 
 #### How It Works
 
-1. **Configure Components**: For each top-level directory (by name), define component patterns
-   - Example: `beginning, middle, end`
-   - Files are matched case-insensitively by pattern in filename
+1. **Configure Filenames**: For each top-level directory (by name), define required filenames
+   - Example: `intro, body, conclusion` (these are filenames without .pdf)
+   - Files are matched case-insensitively as exact filenames (e.g., "intro" matches "intro.pdf" or "INTRO.pdf")
 
-2. **Validation**: Before merging, the tool checks if ALL components are present
-   - If any component is missing, a clear message is displayed
+2. **Validation**: Before merging, the tool checks if ALL configured filenames are present
+   - If any file is missing, a clear message is displayed
    - The directory is skipped (no partial merge)
 
 3. **Ordered Merging**: Files are merged in the order you specify
-   - `beginning` files first, then `middle`, then `end`
-   - Within each component, files are sorted naturally
+   - Files are merged in the exact order of the configuration
 
-4. **Continuous Processing**: The tool continues to the next directory even if previous ones had missing components
+4. **Continuous Processing**: The tool continues to the next directory even if previous ones had missing files
 
 #### Example
 
 ```
 Main Directory/
-├── Reports/              (Config: beginning, middle, end)
-│   ├── beginning_report.pdf   ✓
-│   ├── middle_report.pdf      ✓
-│   └── end_report.pdf         ✓
+├── Reports/              (Config: intro, body, conclusion)
+│   ├── intro.pdf       ✓
+│   ├── body.pdf        ✓
+│   └── conclusion.pdf  ✓
 │   → Will merge in order
 │
-├── Invoices/             (Config: beginning, middle, end)
-│   ├── beginning_invoice.pdf  ✓
-│   └── end_invoice.pdf        ✓
-│   → Skipped - missing "middle"
+├── Invoices/             (Config: intro, body, conclusion)
+│   ├── intro.pdf       ✓
+│   └── conclusion.pdf  ✓
+│   → Skipped - missing "body"
 │
-└── Manuals/              (Config: beginning, middle, end)
-    ├── beginning_manual.pdf   ✓
-    ├── middle_manual.pdf      ✓
-    └── end_manual.pdf         ✓
+└── Manuals/              (Config: intro, body, conclusion)
+    ├── intro.pdf       ✓
+    ├── body.pdf        ✓
+    └── conclusion.pdf  ✓
     → Will merge in order
 ```
 

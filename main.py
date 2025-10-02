@@ -166,10 +166,10 @@ Examples:
         config_dialog.title("Configure Components")
         config_dialog.geometry("600x500")
         
-        ttk.Label(config_dialog, text="Configure component patterns for each directory:", 
+        ttk.Label(config_dialog, text="Configure required filenames for each directory:", 
                  font=('TkDefaultFont', 10, 'bold')).pack(pady=10)
         
-        ttk.Label(config_dialog, text="Enter component names separated by commas (e.g., beginning, middle, end)", 
+        ttk.Label(config_dialog, text="Enter filenames (without .pdf) separated by commas (e.g., intro, body, conclusion)", 
                  font=('TkDefaultFont', 9)).pack(pady=(0, 10))
         
         # Create scrollable frame

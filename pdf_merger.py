@@ -17,7 +17,7 @@ class PDFMerger:
         self.configs = self.load_configs()
     
     def load_configs(self):
-        """Load component configurations from file"""
+        """Load filename configurations from file"""
         if os.path.exists(self.config_file):
             try:
                 with open(self.config_file, 'r') as f:
@@ -27,7 +27,7 @@ class PDFMerger:
         return {}
     
     def save_configs(self):
-        """Save component configurations to file"""
+        """Save filename configurations to file"""
         try:
             with open(self.config_file, 'w') as f:
                 json.dump(self.configs, f, indent=2)
@@ -35,34 +35,34 @@ class PDFMerger:
             raise Exception(f"Error saving configurations: {e}")
     
     def set_directory_config(self, directory_name, components):
-        """Set component configuration for a directory
+        """Set filename configuration for a directory
         
         Args:
             directory_name: Name of the directory (not full path)
-            components: List of component patterns in order, e.g. ["beginning", "middle", "end"]
+            components: List of filenames (without .pdf) in merge order, e.g. ["intro", "body", "conclusion"]
         """
         self.configs[directory_name] = components
         self.save_configs()
     
     def get_directory_config(self, directory_name):
-        """Get component configuration for a directory
+        """Get filename configuration for a directory
         
         Args:
             directory_name: Name of the directory
             
         Returns:
-            List of component patterns or None if not configured
+            List of filenames (without .pdf) or None if not configured
         """
         return self.configs.get(directory_name)
     
     def delete_directory_config(self, directory_name):
-        """Delete component configuration for a directory"""
+        """Delete filename configuration for a directory"""
         if directory_name in self.configs:
             del self.configs[directory_name]
             self.save_configs()
     
     def get_all_configs(self):
-        """Get all component configurations"""
+        """Get all filename configurations"""
         return self.configs.copy()
     
     def get_subdirectories(self, main_directory):
@@ -89,32 +89,44 @@ class PDFMerger:
             raise Exception(f"Error finding files in {directory}: {e}")
     
     def find_component_files(self, directory, components):
-        """Find files matching each component pattern
+        """Find files matching the specified filenames (without .pdf extension)
         
         Args:
             directory: Directory to search in
-            components: List of component patterns
+            components: List of filenames without .pdf extension (e.g., ["intro", "body", "conclusion"])
             
         Returns:
             Tuple of (all_found, component_files_dict, missing_components)
-            - all_found: Boolean indicating if all components were found
-            - component_files_dict: Dict mapping component to list of matching files
-            - missing_components: List of components that weren't found
+            - all_found: Boolean indicating if all files were found
+            - component_files_dict: Dict mapping filename to matching file path
+            - missing_components: List of filenames that weren't found
         """
         component_files = {}
         missing_components = []
         
+        # Get all files in directory (not just .pdf to catch .PDF, .Pdf, etc.)
+        try:
+            all_files = [os.path.join(directory, f) for f in os.listdir(directory) 
+                        if os.path.isfile(os.path.join(directory, f)) and f.lower().endswith('.pdf')]
+        except OSError:
+            all_files = []
+        
         for component in components:
-            # Match files containing the component pattern (case-insensitive)
-            # Get all PDF files in directory and filter case-insensitively
-            all_pdfs = self.get_matching_files(directory, "*.pdf")
             component_lower = component.lower()
-            matching_files = [f for f in all_pdfs if component_lower in os.path.basename(f).lower()]
             
-            if matching_files:
-                # Sort naturally
-                matching_files.sort(key=self.natural_sort_key)
-                component_files[component] = matching_files
+            # Look for exact match of filename (without .pdf extension, case-insensitive)
+            matching_file = None
+            for file_path in all_files:
+                basename = os.path.basename(file_path)
+                # Remove .pdf extension (case-insensitive)
+                if basename.lower().endswith('.pdf'):
+                    filename_without_ext = basename[:-4]
+                    if filename_without_ext.lower() == component_lower:
+                        matching_file = file_path
+                        break
+            
+            if matching_file:
+                component_files[component] = [matching_file]
             else:
                 missing_components.append(component)
         
