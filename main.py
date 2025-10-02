@@ -25,7 +25,7 @@ class PDFMergerGUI:
         self.selected_directory = tk.StringVar()
         self.file_pattern = tk.StringVar(value="*.pdf")
         self.output_format = tk.StringVar(value="{directory}_{date}.pdf")
-        self.use_component_mode = tk.BooleanVar(value=False)
+        self.use_merge_config = tk.BooleanVar(value=False)
         
         # Initialize PDF merger
         self.pdf_merger = PDFMerger()
@@ -70,15 +70,15 @@ class PDFMergerGUI:
         ttk.Entry(output_frame, textvariable=self.output_format).grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
         ttk.Button(output_frame, text="?", width=3, command=self.show_output_help).grid(row=0, column=1)
         
-        # Component mode checkbox
-        component_frame = ttk.Frame(main_frame)
-        component_frame.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
+        # Merge configuration checkbox
+        config_frame = ttk.Frame(main_frame)
+        config_frame.grid(row=3, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(10, 0))
         
-        ttk.Checkbutton(component_frame, text="Use Component Mode", 
-                       variable=self.use_component_mode,
-                       command=self.on_component_mode_toggle).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(component_frame, text="Configure Components", 
-                  command=self.configure_components).pack(side=tk.LEFT)
+        ttk.Checkbutton(config_frame, text="Use Merge Configuration Mode", 
+                       variable=self.use_merge_config,
+                       command=self.on_merge_config_toggle).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(config_frame, text="Configure Merge Order", 
+                  command=self.configure_merge_order).pack(side=tk.LEFT)
         
         # Control buttons
         button_frame = ttk.Frame(main_frame)
@@ -138,105 +138,77 @@ Examples:
 """
         messagebox.showinfo("Output Format Help", help_text)
     
-    def on_component_mode_toggle(self):
-        """Handle component mode checkbox toggle"""
-        if self.use_component_mode.get():
-            self.log("Component mode enabled - will use configured component patterns")
+    def on_merge_config_toggle(self):
+        """Handle merge configuration checkbox toggle"""
+        if self.use_merge_config.get():
+            self.log("Merge configuration mode enabled - will use configured merge order")
         else:
-            self.log("Component mode disabled - will use file pattern matching")
+            self.log("Merge configuration mode disabled - will use file pattern matching")
     
-    def configure_components(self):
-        """Open component configuration dialog"""
+    def configure_merge_order(self):
+        """Open merge order configuration dialog"""
         if not self.selected_directory.get():
             messagebox.showerror("Error", "Please select a main directory first.")
             return
         
-        # Get subdirectories
-        try:
-            subdirs = self.pdf_merger.get_subdirectories(self.selected_directory.get())
-            if not subdirs:
-                messagebox.showinfo("Info", "No subdirectories found in the selected directory.")
-                return
-        except Exception as e:
-            messagebox.showerror("Error", f"Error reading subdirectories: {e}")
-            return
+        root_dir = self.selected_directory.get()
         
         # Create configuration dialog
         config_dialog = tk.Toplevel(self.root)
-        config_dialog.title("Configure Components")
-        config_dialog.geometry("600x500")
+        config_dialog.title("Configure Merge Order")
+        config_dialog.geometry("500x250")
         
-        ttk.Label(config_dialog, text="Configure required filenames for each directory:", 
+        ttk.Label(config_dialog, text="Configure merge order for this root directory:", 
                  font=('TkDefaultFont', 10, 'bold')).pack(pady=10)
         
-        ttk.Label(config_dialog, text="Enter filenames (without .pdf) separated by commas (e.g., intro, body, conclusion)", 
+        ttk.Label(config_dialog, text="This configuration will apply to ALL subdirectories", 
+                 font=('TkDefaultFont', 9)).pack(pady=(0, 5))
+        
+        ttk.Label(config_dialog, text="Enter filenames (without .pdf) separated by commas", 
                  font=('TkDefaultFont', 9)).pack(pady=(0, 10))
         
-        # Create scrollable frame
-        canvas = tk.Canvas(config_dialog)
-        scrollbar = ttk.Scrollbar(config_dialog, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
+        ttk.Label(config_dialog, text="Example: intro, body, conclusion", 
+                 font=('TkDefaultFont', 9, 'italic')).pack(pady=(0, 10))
         
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
+        # Entry frame
+        entry_frame = ttk.Frame(config_dialog)
+        entry_frame.pack(fill=tk.X, padx=20, pady=10)
         
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        ttk.Label(entry_frame, text="Merge Order:").pack(anchor=tk.W)
+        entry = ttk.Entry(entry_frame, width=50)
+        entry.pack(fill=tk.X, pady=5)
         
-        # Store entry widgets
-        config_entries = {}
+        # Load existing config if any
+        existing_config = self.pdf_merger.get_merge_config(root_dir)
+        if existing_config:
+            entry.insert(0, ", ".join(existing_config))
         
-        for subdir in subdirs:
-            subdir_name = os.path.basename(subdir)
-            frame = ttk.Frame(scrollable_frame)
-            frame.pack(fill=tk.X, padx=10, pady=5)
-            
-            ttk.Label(frame, text=subdir_name, width=25, anchor=tk.W).pack(side=tk.LEFT, padx=(0, 10))
-            
-            entry = ttk.Entry(frame, width=40)
-            entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
-            
-            # Load existing config if any
-            existing_config = self.pdf_merger.get_directory_config(subdir_name)
-            if existing_config:
-                entry.insert(0, ", ".join(existing_config))
-            
-            config_entries[subdir_name] = entry
-            
-            # Add delete button
-            ttk.Button(frame, text="Clear", width=8,
-                      command=lambda sn=subdir_name, e=entry: self.clear_component_config(sn, e)).pack(side=tk.LEFT, padx=(5, 0))
+        # Save and clear buttons
+        def save_config():
+            value = entry.get().strip()
+            if value:
+                merge_order = [f.strip() for f in value.split(',') if f.strip()]
+                if merge_order:
+                    self.pdf_merger.set_merge_config(root_dir, merge_order)
+                    config_dialog.destroy()
+                    self.log(f"Saved merge configuration for {root_dir}: {merge_order}")
+                    messagebox.showinfo("Success", f"Saved merge order: {', '.join(merge_order)}")
+                else:
+                    messagebox.showwarning("Warning", "Please enter at least one filename.")
+            else:
+                messagebox.showwarning("Warning", "Please enter filenames to configure merge order.")
         
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 0), pady=(0, 10))
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y, pady=(0, 10))
-        
-        # Save button
-        def save_configs():
-            saved_count = 0
-            for subdir_name, entry in config_entries.items():
-                value = entry.get().strip()
-                if value:
-                    components = [c.strip() for c in value.split(',') if c.strip()]
-                    if components:
-                        self.pdf_merger.set_directory_config(subdir_name, components)
-                        saved_count += 1
-            
-            config_dialog.destroy()
-            self.log(f"Saved component configurations for {saved_count} directories")
-            messagebox.showinfo("Success", f"Saved configurations for {saved_count} directories.")
+        def clear_config():
+            self.pdf_merger.delete_merge_config(root_dir)
+            entry.delete(0, tk.END)
+            self.log(f"Cleared merge configuration for {root_dir}")
+            messagebox.showinfo("Cleared", "Merge configuration has been cleared.")
         
         button_frame = ttk.Frame(config_dialog)
         button_frame.pack(pady=10)
-        ttk.Button(button_frame, text="Save", command=save_configs).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Save", command=save_config).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Clear", command=clear_config).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="Cancel", command=config_dialog.destroy).pack(side=tk.LEFT, padx=5)
-    
-    def clear_component_config(self, directory_name, entry_widget):
-        """Clear component configuration for a directory"""
-        self.pdf_merger.delete_directory_config(directory_name)
-        entry_widget.delete(0, tk.END)
-        self.log(f"Cleared configuration for {directory_name}")
         
     def log(self, message):
         """Add message to log"""
@@ -256,14 +228,14 @@ Examples:
             return
             
         try:
-            use_component = self.use_component_mode.get()
-            self.log(f"Previewing merge operation (Component mode: {use_component})...")
+            use_config = self.use_merge_config.get()
+            self.log(f"Previewing merge operation (Merge configuration mode: {use_config})...")
             
             preview_data = self.pdf_merger.preview_merge(
                 self.selected_directory.get(),
                 self.file_pattern.get(),
                 self.output_format.get(),
-                use_component_mode=use_component
+                use_merge_config=use_config
             )
             
             if not preview_data:
@@ -279,15 +251,15 @@ Examples:
                 
                 if status_info['status'] == 'missing':
                     missing_count += 1
-                    self.log(f"  {subdir_name}: MISSING COMPONENTS - {', '.join(status_info['missing_components'])}")
+                    self.log(f"  {subdir_name}: MISSING FILES - {', '.join(status_info['missing_files'])}")
                 elif status_info['status'] == 'ready':
                     ready_count += 1
-                    if status_info['mode'] == 'component':
-                        self.log(f"  {subdir_name}: READY ({len(files)} files in order: {', '.join(status_info['components'])})")
-                        for component in status_info['components']:
-                            comp_files = status_info['component_files'].get(component, [])
-                            for f in comp_files:
-                                self.log(f"    [{component}] {os.path.basename(f)}")
+                    if status_info['mode'] == 'merge_config':
+                        self.log(f"  {subdir_name}: READY ({len(files)} files in order: {', '.join(status_info['merge_order'])})")
+                        for filename in status_info['merge_order']:
+                            merge_files = status_info['merge_files'].get(filename, [])
+                            for f in merge_files:
+                                self.log(f"    [{filename}] {os.path.basename(f)}")
                     else:
                         self.log(f"  {subdir_name}: {len(files)} files -> {os.path.basename(output_file)}")
                         for file in files[:3]:
@@ -295,8 +267,8 @@ Examples:
                         if len(files) > 3:
                             self.log(f"    ... and {len(files) - 3} more files")
             
-            if use_component:
-                self.log(f"\nSummary: {ready_count} ready to merge, {missing_count} with missing components")
+            if use_config:
+                self.log(f"\nSummary: {ready_count} ready to merge, {missing_count} with missing files")
                     
         except Exception as e:
             self.log(f"Preview error: {str(e)}")
@@ -309,21 +281,21 @@ Examples:
             return
             
         # Confirm action
-        use_component = self.use_component_mode.get()
-        mode_text = "component mode" if use_component else "pattern mode"
+        use_config = self.use_merge_config.get()
+        mode_text = "merge configuration mode" if use_config else "pattern mode"
         if not messagebox.askyesno("Confirm", f"This will create merged PDF files using {mode_text}. Continue?"):
             return
             
         try:
             self.progress.start()
-            self.log(f"Starting PDF merge operation (Component mode: {use_component})...")
+            self.log(f"Starting PDF merge operation (Merge configuration mode: {use_config})...")
             
             results = self.pdf_merger.merge_pdfs(
                 self.selected_directory.get(),
                 self.file_pattern.get(),
                 self.output_format.get(),
                 progress_callback=self.log,
-                use_component_mode=use_component
+                use_merge_config=use_config
             )
             
             self.progress.stop()
