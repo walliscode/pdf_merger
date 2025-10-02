@@ -1,5 +1,7 @@
 # PDF Merger
 
+[![CI/CD Pipeline](https://github.com/walliscode/pdf_merger/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/walliscode/pdf_merger/actions/workflows/ci-cd.yml)
+
 A Python application for merging PDF files in subdirectories based on user-defined specifications.
 
 ## Features
@@ -256,6 +258,13 @@ docker run --rm -v $(pwd)/mypdfs:/data <dockerhub-username>/pdf-merger /data "*.
 - Push to `main` branch
 - Pull requests to `main` branch
 - Manual workflow dispatch
+
+## Documentation
+
+- **[CICD_SETUP.md](CICD_SETUP.md)** - Comprehensive CI/CD pipeline setup guide
+- **[DOCKER.md](DOCKER.md)** - Docker usage and examples
+- **[RELEASES.md](RELEASES.md)** - Guide to using different distribution formats
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** - Contributing guidelines for developers
 
 ## License
 
