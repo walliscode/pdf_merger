@@ -213,6 +213,50 @@ Main Directory/
 - PyPDF2
 - tkinter (for GUI mode)
 
+## CI/CD Pipeline
+
+This project includes a comprehensive CI/CD pipeline using GitHub Actions that:
+
+### Testing & Quality
+- **Automated Tests**: Runs all tests on every push and pull request
+- **Code Linting**: Checks code quality with flake8 and pylint
+- **Multi-Platform Support**: Tests run on Ubuntu with required dependencies (pandoc, poppler-utils)
+
+### Distribution
+
+#### Python Package
+- Builds a distributable Python package (wheel and source)
+- Available as GitHub Actions artifacts
+- Ready for PyPI publication
+
+#### Executables
+- **Cross-Platform Builds**: Creates standalone executables for:
+  - Linux (Ubuntu)
+  - Windows
+  - macOS
+- **No Dependencies Required**: Users can run the application without Python installed
+- **Download**: Executables available as artifacts from GitHub Actions runs
+
+#### Docker Image
+- **Automated Build**: Docker images built and pushed on every main branch commit
+- **Multi-Tag Support**: Images tagged with branch name, commit SHA, and `latest`
+- **Lightweight**: Based on Python 3.12 slim image
+- **Secure**: Runs as non-root user
+
+### Using the Docker Image
+
+For detailed Docker usage instructions, see [DOCKER.md](DOCKER.md).
+
+Quick example:
+```bash
+docker run --rm -v $(pwd)/mypdfs:/data <dockerhub-username>/pdf-merger /data "*.pdf" "merged.pdf"
+```
+
+### Workflow Triggers
+- Push to `main` branch
+- Pull requests to `main` branch
+- Manual workflow dispatch
+
 ## License
 
 GNU General Public License v3.0 - see LICENSE file for details.
