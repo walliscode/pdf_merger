@@ -34,35 +34,39 @@ class PDFMerger:
         except Exception as e:
             raise Exception(f"Error saving configurations: {e}")
     
-    def set_directory_config(self, directory_name, components):
-        """Set filename configuration for a directory
+    def set_merge_config(self, root_directory, merge_order):
+        """Set merge configuration for a root directory
         
         Args:
-            directory_name: Name of the directory (not full path)
-            components: List of filenames (without .pdf) in merge order, e.g. ["intro", "body", "conclusion"]
+            root_directory: Full path to the root directory
+            merge_order: List of filenames (without .pdf) in merge order, e.g. ["intro", "body", "conclusion"]
         """
-        self.configs[directory_name] = components
+        # Normalize the path to use as key
+        normalized_path = os.path.abspath(root_directory)
+        self.configs[normalized_path] = merge_order
         self.save_configs()
     
-    def get_directory_config(self, directory_name):
-        """Get filename configuration for a directory
+    def get_merge_config(self, root_directory):
+        """Get merge configuration for a root directory
         
         Args:
-            directory_name: Name of the directory
+            root_directory: Full path to the root directory
             
         Returns:
             List of filenames (without .pdf) or None if not configured
         """
-        return self.configs.get(directory_name)
+        normalized_path = os.path.abspath(root_directory)
+        return self.configs.get(normalized_path)
     
-    def delete_directory_config(self, directory_name):
-        """Delete filename configuration for a directory"""
-        if directory_name in self.configs:
-            del self.configs[directory_name]
+    def delete_merge_config(self, root_directory):
+        """Delete merge configuration for a root directory"""
+        normalized_path = os.path.abspath(root_directory)
+        if normalized_path in self.configs:
+            del self.configs[normalized_path]
             self.save_configs()
     
     def get_all_configs(self):
-        """Get all filename configurations"""
+        """Get all merge configurations"""
         return self.configs.copy()
     
     def get_subdirectories(self, main_directory):
@@ -88,21 +92,21 @@ class PDFMerger:
         except Exception as e:
             raise Exception(f"Error finding files in {directory}: {e}")
     
-    def find_component_files(self, directory, components):
+    def find_merge_config_files(self, directory, merge_order):
         """Find files matching the specified filenames (without .pdf extension)
         
         Args:
             directory: Directory to search in
-            components: List of filenames without .pdf extension (e.g., ["intro", "body", "conclusion"])
+            merge_order: List of filenames without .pdf extension (e.g., ["intro", "body", "conclusion"])
             
         Returns:
-            Tuple of (all_found, component_files_dict, missing_components)
+            Tuple of (all_found, merge_files_dict, missing_files)
             - all_found: Boolean indicating if all files were found
-            - component_files_dict: Dict mapping filename to matching file path
-            - missing_components: List of filenames that weren't found
+            - merge_files_dict: Dict mapping filename to matching file path
+            - missing_files: List of filenames that weren't found
         """
-        component_files = {}
-        missing_components = []
+        merge_files = {}
+        missing_files = []
         
         # Get all files in directory (not just .pdf to catch .PDF, .Pdf, etc.)
         try:
@@ -111,8 +115,8 @@ class PDFMerger:
         except OSError:
             all_files = []
         
-        for component in components:
-            component_lower = component.lower()
+        for filename in merge_order:
+            filename_lower = filename.lower()
             
             # Look for exact match of filename (without .pdf extension, case-insensitive)
             matching_file = None
@@ -121,32 +125,32 @@ class PDFMerger:
                 # Remove .pdf extension (case-insensitive)
                 if basename.lower().endswith('.pdf'):
                     filename_without_ext = basename[:-4]
-                    if filename_without_ext.lower() == component_lower:
+                    if filename_without_ext.lower() == filename_lower:
                         matching_file = file_path
                         break
             
             if matching_file:
-                component_files[component] = [matching_file]
+                merge_files[filename] = [matching_file]
             else:
-                missing_components.append(component)
+                missing_files.append(filename)
         
-        all_found = len(missing_components) == 0
-        return all_found, component_files, missing_components
+        all_found = len(missing_files) == 0
+        return all_found, merge_files, missing_files
     
-    def get_ordered_component_files(self, component_files_dict, components):
-        """Get files in the order specified by components
+    def get_ordered_merge_files(self, merge_files_dict, merge_order):
+        """Get files in the order specified by merge configuration
         
         Args:
-            component_files_dict: Dict mapping component to list of files
-            components: List of components in desired order
+            merge_files_dict: Dict mapping filename to list of files
+            merge_order: List of filenames in desired order
             
         Returns:
             List of files in the specified order
         """
         ordered_files = []
-        for component in components:
-            if component in component_files_dict:
-                ordered_files.extend(component_files_dict[component])
+        for filename in merge_order:
+            if filename in merge_files_dict:
+                ordered_files.extend(merge_files_dict[filename])
         return ordered_files
     
     def natural_sort_key(self, text):
@@ -175,14 +179,14 @@ class PDFMerger:
             
         return filename
     
-    def preview_merge(self, main_directory, file_pattern, output_format, use_component_mode=False):
+    def preview_merge(self, main_directory, file_pattern, output_format, use_merge_config=False):
         """Preview what will be merged without actually merging
         
         Args:
             main_directory: Main directory containing subdirectories
-            file_pattern: File pattern to match (only used when not in component mode)
+            file_pattern: File pattern to match (only used when not in merge config mode)
             output_format: Output filename template
-            use_component_mode: If True, use component-based merging with configs
+            use_merge_config: If True, use merge configuration (mandatory if True)
             
         Returns:
             List of tuples (subdir, matching_files, output_path, status_info)
@@ -192,38 +196,39 @@ class PDFMerger:
         if not os.path.exists(main_directory):
             raise Exception(f"Directory does not exist: {main_directory}")
         
+        # If merge config mode is enabled, ensure configuration exists
+        if use_merge_config:
+            merge_order = self.get_merge_config(main_directory)
+            if not merge_order:
+                raise Exception(f"Merge configuration is required but not set for: {main_directory}\n"
+                               f"Set it using --set-merge-config option")
+        
         subdirs = self.get_subdirectories(main_directory)
         
         for subdir in subdirs:
             subdir_name = os.path.basename(subdir)
             status_info = {}
             
-            if use_component_mode:
-                components = self.get_directory_config(subdir_name)
+            if use_merge_config:
+                merge_order = self.get_merge_config(main_directory)
+                status_info['mode'] = 'merge_config'
+                status_info['merge_order'] = merge_order
+                all_found, merge_files, missing = self.find_merge_config_files(subdir, merge_order)
                 
-                if components:
-                    status_info['mode'] = 'component'
-                    status_info['components'] = components
-                    all_found, component_files, missing = self.find_component_files(subdir, components)
-                    
-                    if all_found:
-                        matching_files = self.get_ordered_component_files(component_files, components)
-                        status_info['status'] = 'ready'
-                        status_info['component_files'] = component_files
-                    else:
-                        matching_files = []
-                        status_info['status'] = 'missing'
-                        status_info['missing_components'] = missing
+                if all_found:
+                    matching_files = self.get_ordered_merge_files(merge_files, merge_order)
+                    status_info['status'] = 'ready'
+                    status_info['merge_files'] = merge_files
                 else:
-                    status_info['mode'] = 'pattern'
-                    matching_files = self.get_matching_files(subdir, file_pattern)
-                    status_info['status'] = 'ready' if matching_files else 'no_files'
+                    matching_files = []
+                    status_info['status'] = 'missing'
+                    status_info['missing_files'] = missing
             else:
                 status_info['mode'] = 'pattern'
                 matching_files = self.get_matching_files(subdir, file_pattern)
                 status_info['status'] = 'ready' if matching_files else 'no_files'
             
-            if matching_files or (use_component_mode and status_info.get('status') == 'missing'):
+            if matching_files or (use_merge_config and status_info.get('status') == 'missing'):
                 output_filename = self.format_output_filename(output_format, subdir)
                 output_path = os.path.join(subdir, output_filename)
                 preview_data.append((subdir, matching_files, output_path, status_info))
@@ -253,18 +258,25 @@ class PDFMerger:
         except Exception as e:
             raise Exception(f"Error writing merged PDF to {output_path}: {e}")
     
-    def merge_pdfs(self, main_directory, file_pattern, output_format, progress_callback=None, use_component_mode=False):
+    def merge_pdfs(self, main_directory, file_pattern, output_format, progress_callback=None, use_merge_config=False):
         """Merge PDFs in all subdirectories
         
         Args:
             main_directory: Main directory containing subdirectories
-            file_pattern: File pattern to match (only used when not in component mode)
+            file_pattern: File pattern to match (only used when not in merge config mode)
             output_format: Output filename template
             progress_callback: Optional callback for progress messages
-            use_component_mode: If True, use component-based merging with configs
+            use_merge_config: If True, use merge configuration (mandatory if True)
         """
         if not os.path.exists(main_directory):
             raise Exception(f"Directory does not exist: {main_directory}")
+        
+        # If merge config mode is enabled, ensure configuration exists
+        if use_merge_config:
+            merge_order = self.get_merge_config(main_directory)
+            if not merge_order:
+                raise Exception(f"Merge configuration is required but not set for: {main_directory}\n"
+                               f"Set it using --set-merge-config option")
         
         results = []
         subdirs = self.get_subdirectories(main_directory)
@@ -278,36 +290,29 @@ class PDFMerger:
             if progress_callback:
                 progress_callback(f"Processing {i}/{len(subdirs)}: {subdir_name}")
             
-            # Check if component mode is enabled
-            if use_component_mode:
-                components = self.get_directory_config(subdir_name)
+            # Check if merge config mode is enabled
+            if use_merge_config:
+                merge_order = self.get_merge_config(main_directory)
+                # Merge configuration-based merging
+                if progress_callback:
+                    progress_callback(f"  Using merge configuration: {merge_order}")
                 
-                if components:
-                    # Component-based merging
+                all_found, merge_files, missing = self.find_merge_config_files(subdir, merge_order)
+                
+                if not all_found:
                     if progress_callback:
-                        progress_callback(f"  Using component configuration: {components}")
-                    
-                    all_found, component_files, missing = self.find_component_files(subdir, components)
-                    
-                    if not all_found:
-                        if progress_callback:
-                            progress_callback(f"  Missing components: {', '.join(missing)}")
-                            progress_callback(f"  Skipping {subdir_name} - not all components present")
-                        continue
-                    
-                    if progress_callback:
-                        progress_callback(f"  All components found!")
-                        for component in components:
-                            files = component_files[component]
-                            progress_callback(f"    {component}: {len(files)} file(s)")
-                    
-                    # Get files in order specified by components
-                    matching_files = self.get_ordered_component_files(component_files, components)
-                else:
-                    # No config for this directory, use pattern-based matching
-                    if progress_callback:
-                        progress_callback(f"  No component configuration for {subdir_name}, using pattern")
-                    matching_files = self.get_matching_files(subdir, file_pattern)
+                        progress_callback(f"  Missing files: {', '.join(missing)}")
+                        progress_callback(f"  Skipping {subdir_name} - not all files present")
+                    continue
+                
+                if progress_callback:
+                    progress_callback(f"  All files found!")
+                    for filename in merge_order:
+                        files = merge_files[filename]
+                        progress_callback(f"    {filename}: {len(files)} file(s)")
+                
+                # Get files in order specified by merge configuration
+                matching_files = self.get_ordered_merge_files(merge_files, merge_order)
             else:
                 # Pattern-based merging (original behavior)
                 matching_files = self.get_matching_files(subdir, file_pattern)
@@ -317,7 +322,7 @@ class PDFMerger:
                     progress_callback(f"  No matching files found in {subdir_name}")
                 continue
             
-            if progress_callback and not use_component_mode:
+            if progress_callback and not use_merge_config:
                 progress_callback(f"  Found {len(matching_files)} matching files")
             
             try:

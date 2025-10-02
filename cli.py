@@ -22,11 +22,11 @@ Examples:
   %(prog)s /path/to/main/directory --output "{directory}_merged_{date}.pdf"
   %(prog)s /path/to/main/directory --preview
   
-  # Component mode examples
-  %(prog)s --set-components "Reports:beginning,middle,end"
+  # Merge configuration mode examples
+  %(prog)s --set-merge-config /path/to/main/directory beginning,middle,end
   %(prog)s --list-configs
-  %(prog)s /path/to/main/directory --component-mode --preview
-  %(prog)s /path/to/main/directory --component-mode
+  %(prog)s /path/to/main/directory --merge-config --preview
+  %(prog)s /path/to/main/directory --merge-config
   
 File Patterns:
   *.pdf          - All PDF files (default)
@@ -40,10 +40,11 @@ Output Formats:
   {time}         - Current time (HHMMSS)
   {datetime}     - Current date and time (YYYY-MM-DD_HHMMSS)
 
-Component Mode:
-  Configure specific component patterns for each directory.
-  Only merges when ALL components are present.
-  Merges files in the order specified by components.
+Merge Configuration Mode:
+  Configure specific file order for a root directory.
+  All subdirectories follow the same merge order.
+  Only merges when ALL configured files are present.
+  Merges files in the order specified by configuration.
         """
     )
     
@@ -84,22 +85,23 @@ Component Mode:
     )
     
     parser.add_argument(
-        "--component-mode", "-c",
+        "--merge-config", "-m",
         action="store_true",
-        help="Use component-based merging with saved configurations"
+        help="Use merge configuration mode (requires configuration to be set)"
     )
     
     parser.add_argument(
-        "--set-components",
-        metavar="DIR:COMP1,COMP2,...",
+        "--set-merge-config",
+        nargs=2,
+        metavar=("ROOT_DIR", "FILE1,FILE2,..."),
         action="append",
-        help="Set component configuration for a directory (e.g., Reports:beginning,middle,end)"
+        help="Set merge configuration for a root directory (e.g., /path/to/dir \"beginning,middle,end\")"
     )
     
     parser.add_argument(
         "--list-configs",
         action="store_true",
-        help="List all saved component configurations"
+        help="List all saved merge configurations"
     )
     
     args = parser.parse_args()
@@ -117,29 +119,24 @@ Component Mode:
     # Initialize PDF merger
     merger = PDFMerger()
     
-    # Handle component configuration commands
-    if args.set_components:
-        for config_str in args.set_components:
-            try:
-                dir_name, components_str = config_str.split(':', 1)
-                components = [c.strip() for c in components_str.split(',') if c.strip()]
-                if components:
-                    merger.set_directory_config(dir_name, components)
-                    print(f"Set components for '{dir_name}': {components}")
-                else:
-                    print(f"Warning: No valid components specified for '{dir_name}'", file=sys.stderr)
-            except ValueError:
-                print(f"Error: Invalid format '{config_str}'. Use DIR:COMP1,COMP2,...", file=sys.stderr)
-                sys.exit(1)
+    # Handle merge configuration commands
+    if args.set_merge_config:
+        for root_dir, merge_order_str in args.set_merge_config:
+            merge_order = [f.strip() for f in merge_order_str.split(',') if f.strip()]
+            if merge_order:
+                merger.set_merge_config(root_dir, merge_order)
+                print(f"Set merge configuration for '{root_dir}': {merge_order}")
+            else:
+                print(f"Warning: No valid files specified for '{root_dir}'", file=sys.stderr)
     
     if args.list_configs:
         configs = merger.get_all_configs()
         if configs:
-            print("Component Configurations:")
-            for dir_name, components in configs.items():
-                print(f"  {dir_name}: {', '.join(components)}")
+            print("Merge Configurations:")
+            for root_dir, merge_order in configs.items():
+                print(f"  {root_dir}: {', '.join(merge_order)}")
         else:
-            print("No component configurations found.")
+            print("No merge configurations found.")
         
         # If only listing configs, exit
         if not args.directory:
@@ -181,10 +178,10 @@ Component Mode:
         
         # Preview or merge
         if args.preview:
-            mode_text = "component mode" if args.component_mode else "pattern mode"
+            mode_text = "merge configuration mode" if args.merge_config else "pattern mode"
             print(f"Preview Mode - Showing what would be merged ({mode_text}):")
             preview_data = merger.preview_merge(args.directory, args.pattern, args.output, 
-                                               use_component_mode=args.component_mode)
+                                               use_merge_config=args.merge_config)
             
             if not preview_data:
                 print("No subdirectories with matching PDF files found.")
@@ -201,16 +198,16 @@ Component Mode:
                 
                 if status_info['status'] == 'missing':
                     missing_count += 1
-                    print(f"  {subdir_name}: MISSING COMPONENTS - {', '.join(status_info['missing_components'])}")
+                    print(f"  {subdir_name}: MISSING FILES - {', '.join(status_info['missing_files'])}")
                 elif status_info['status'] == 'ready':
                     ready_count += 1
-                    if status_info['mode'] == 'component':
-                        print(f"  {subdir_name}: READY ({len(files)} files in order: {', '.join(status_info['components'])}) -> {output_name}")
+                    if status_info['mode'] == 'merge_config':
+                        print(f"  {subdir_name}: READY ({len(files)} files in order: {', '.join(status_info['merge_order'])}) -> {output_name}")
                         if args.verbose:
-                            for component in status_info['components']:
-                                comp_files = status_info['component_files'].get(component, [])
-                                for f in comp_files:
-                                    print(f"    [{component}] {os.path.basename(f)}")
+                            for filename in status_info['merge_order']:
+                                merge_files = status_info['merge_files'].get(filename, [])
+                                for f in merge_files:
+                                    print(f"    [{filename}] {os.path.basename(f)}")
                     else:
                         print(f"  {subdir_name}: {len(files)} files -> {output_name}")
                         if args.verbose:
@@ -219,12 +216,12 @@ Component Mode:
                     total_files += len(files)
             
             print(f"\nTotal files to merge: {total_files}")
-            if args.component_mode:
-                print(f"Ready to merge: {ready_count}, Missing components: {missing_count}")
+            if args.merge_config:
+                print(f"Ready to merge: {ready_count}, Missing files: {missing_count}")
             
         else:
             # Actual merge
-            mode_text = "component mode" if args.component_mode else "pattern mode"
+            mode_text = "merge configuration mode" if args.merge_config else "pattern mode"
             print(f"Merging PDFs ({mode_text})...")
             
             def progress_callback(message):
@@ -236,7 +233,7 @@ Component Mode:
                 args.pattern,
                 args.output,
                 progress_callback=progress_callback if args.verbose else None,
-                use_component_mode=args.component_mode
+                use_merge_config=args.merge_config
             )
             
             if results:
