@@ -6,7 +6,7 @@ A Python application for merging PDF files in subdirectories based on user-defin
 
 - **GUI Interface**: User-friendly tkinter-based graphical interface
 - **Command-line Interface**: Full-featured CLI for automation and scripting
-- **Filename-Based Merging**: Configure specific filenames (without .pdf) that must be present for each directory
+- **Merge Configuration**: Configure specific filenames (without .pdf) that must be present for all subdirectories of a root directory
 - **Flexible File Patterns**: Support for glob patterns to specify which files to merge
 - **Customizable Output Names**: Template-based output naming with date/time placeholders
 - **Preview Mode**: See what will be merged before performing the operation
@@ -49,14 +49,14 @@ The GUI provides:
 - Preview functionality
 - Progress tracking and logging
 
-#### Component Mode (GUI)
+#### Merge Configuration Mode (GUI)
 
 1. Select your main directory
-2. Check "Use Component Mode"
-3. Click "Configure Components"
-4. For each subdirectory, enter filenames (without .pdf) separated by commas (e.g., `intro, body, conclusion`)
+2. Check "Use Merge Configuration Mode"
+3. Click "Configure Merge Order"
+4. Enter filenames (without .pdf) separated by commas (e.g., `intro, body, conclusion`)
 5. Click "Save"
-6. Use Preview or Merge PDFs - directories without all required files will be skipped
+6. Use Preview or Merge PDFs - subdirectories without all required files will be skipped
 
 ### Command-line Mode
 
@@ -77,28 +77,29 @@ python3 cli.py /path/to/main/directory --output "merged_{directory}_{datetime}.p
 python3 cli.py /path/to/main/directory --verbose --stats
 ```
 
-#### Component Mode (CLI)
+#### Merge Configuration Mode (CLI)
 
 ```bash
-# Configure filenames for directories (without .pdf extension)
-python3 cli.py --set-components "Reports:intro,body,conclusion"
-python3 cli.py --set-components "Invoices:invoice_intro,invoice_body,invoice_summary"
+# Configure merge order for a root directory (without .pdf extension)
+python3 cli.py --set-merge-config /path/to/main/directory "intro,body,conclusion"
 
 # List all saved configurations
 python3 cli.py --list-configs
 
-# Preview with component mode
-python3 cli.py /path/to/main/directory --component-mode --preview --verbose
+# Preview with merge configuration mode
+python3 cli.py /path/to/main/directory --merge-config --preview --verbose
 
-# Merge with component mode
-python3 cli.py /path/to/main/directory --component-mode --verbose
+# Merge with merge configuration mode (configuration is mandatory)
+python3 cli.py /path/to/main/directory --merge-config --verbose
 ```
 
-Component mode will:
-- Only merge directories where ALL configured filenames are found
+Merge configuration mode will:
+- Apply the same merge order to ALL subdirectories under the root directory
+- Only merge subdirectories where ALL configured filenames are found
 - Merge files in the order specified by configuration
-- Skip directories with missing files (with clear messages)
-- Continue processing remaining directories even if one fails
+- Skip subdirectories with missing files (with clear messages)
+- Continue processing remaining subdirectories even if one fails
+- Configuration must be set before using this mode
 
 ### File Patterns
 
@@ -122,41 +123,46 @@ Examples:
 - `merged_{directory}.pdf` → `merged_Reports.pdf`
 - `{directory}_combined_{datetime}.pdf` → `Reports_combined_2024-01-15_143022.pdf`
 
-### Component Mode
+### Merge Configuration Mode
 
-Component mode allows you to define specific filenames (without .pdf extension) that must be present in each directory before merging. This ensures complete document sets are merged together.
+Merge configuration mode allows you to define a specific merge order for a root directory. All subdirectories under that root will use the same merge order. This ensures consistent document organization across all subdirectories.
 
 #### How It Works
 
-1. **Configure Filenames**: For each top-level directory (by name), define required filenames
+1. **Configure Merge Order**: For a root directory, define the required filenames in merge order
    - Example: `intro, body, conclusion` (these are filenames without .pdf)
    - Files are matched case-insensitively as exact filenames (e.g., "intro" matches "intro.pdf" or "INTRO.pdf")
+   - The configuration applies to ALL subdirectories under the root directory
 
-2. **Validation**: Before merging, the tool checks if ALL configured filenames are present
+2. **Mandatory Configuration**: The merge configuration must be set before using this mode
+   - Without a configuration, the tool will refuse to run
+   - This ensures you always know exactly what order files will be merged
+
+3. **Validation**: Before merging, the tool checks if ALL configured filenames are present in each subdirectory
    - If any file is missing, a clear message is displayed
-   - The directory is skipped (no partial merge)
+   - The subdirectory is skipped (no partial merge)
 
-3. **Ordered Merging**: Files are merged in the order you specify
+4. **Ordered Merging**: Files are merged in the order you specify
    - Files are merged in the exact order of the configuration
 
-4. **Continuous Processing**: The tool continues to the next directory even if previous ones had missing files
+5. **Continuous Processing**: The tool continues to the next subdirectory even if previous ones had missing files
 
 #### Example
 
 ```
-Main Directory/
-├── Reports/              (Config: intro, body, conclusion)
+Main Directory/           (Config: intro, body, conclusion - applies to all subdirectories)
+├── Reports/
 │   ├── intro.pdf       ✓
 │   ├── body.pdf        ✓
 │   └── conclusion.pdf  ✓
 │   → Will merge in order
 │
-├── Invoices/             (Config: intro, body, conclusion)
+├── Invoices/
 │   ├── intro.pdf       ✓
 │   └── conclusion.pdf  ✓
 │   → Skipped - missing "body"
 │
-└── Manuals/              (Config: intro, body, conclusion)
+└── Manuals/
     ├── intro.pdf       ✓
     ├── body.pdf        ✓
     └── conclusion.pdf  ✓
@@ -174,12 +180,14 @@ The application supports two modes:
 4. **Merging**: PDFs are combined into a single file in the same subdirectory
 5. **Naming**: Output file uses your specified template with date/time information
 
-### Component Mode
-1. **Configuration**: Define required components for each directory (e.g., "beginning, middle, end")
-2. **Validation**: Check that ALL configured components are present before merging
-3. **Ordered Discovery**: Find files matching each component pattern
-4. **Sequential Merging**: Merge files in the order specified by components
-5. **Smart Skipping**: Skip directories with missing components, continue with others
+### Merge Configuration Mode
+1. **Configuration**: Define required merge order for a root directory (e.g., "beginning, middle, end")
+2. **Universal Application**: The same merge order applies to all subdirectories
+3. **Mandatory Setup**: Configuration must be set before using this mode
+4. **Validation**: Check that ALL configured files are present before merging each subdirectory
+5. **Ordered Discovery**: Find files matching each configured filename
+6. **Sequential Merging**: Merge files in the order specified by configuration
+7. **Smart Skipping**: Skip subdirectories with missing files, continue with others
 
 Example directory structure:
 ```
