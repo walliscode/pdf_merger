@@ -106,10 +106,14 @@ class PDFMerger:
         
         for component in components:
             # Match files containing the component pattern (case-insensitive)
-            pattern = f"*{component}*.pdf"
-            matching_files = self.get_matching_files(directory, pattern)
+            # Get all PDF files in directory and filter case-insensitively
+            all_pdfs = self.get_matching_files(directory, "*.pdf")
+            component_lower = component.lower()
+            matching_files = [f for f in all_pdfs if component_lower in os.path.basename(f).lower()]
             
             if matching_files:
+                # Sort naturally
+                matching_files.sort(key=self.natural_sort_key)
                 component_files[component] = matching_files
             else:
                 missing_components.append(component)
