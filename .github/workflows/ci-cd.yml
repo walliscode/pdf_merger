@@ -29,7 +29,7 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install -y pandoc poppler-utils
+        sudo apt-get install -y pandoc poppler-utils texlive-latex-base texlive-fonts-recommended texlive-latex-extra
     
     - name: Install Python dependencies
       run: |
@@ -87,10 +87,10 @@ jobs:
     - name: Install build dependencies
       run: |
         pip install --upgrade pip
-        pip install build wheel setuptools
+        pip install wheel setuptools
     
     - name: Build package
-      run: python -m build
+      run: python setup.py sdist bdist_wheel
     
     - name: Upload package artifacts
       uses: actions/upload-artifact@v4
