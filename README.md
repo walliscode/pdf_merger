@@ -6,11 +6,13 @@ A Python application for merging PDF files in subdirectories based on user-defin
 
 - **GUI Interface**: User-friendly tkinter-based graphical interface
 - **Command-line Interface**: Full-featured CLI for automation and scripting
+- **Component-Based Merging**: Configure specific file components (e.g., beginning, middle, end) for each directory
 - **Flexible File Patterns**: Support for glob patterns to specify which files to merge
 - **Customizable Output Names**: Template-based output naming with date/time placeholders
 - **Preview Mode**: See what will be merged before performing the operation
 - **Non-destructive**: Original files are never modified
 - **Natural Sorting**: Files are sorted naturally (handles numbers correctly)
+- **Smart Validation**: Only merges when all required components are present
 
 ## Installation
 
@@ -43,8 +45,18 @@ The GUI provides:
 - Directory selection browser
 - File pattern specification with help
 - Output format customization
+- Component mode with configuration dialog
 - Preview functionality
 - Progress tracking and logging
+
+#### Component Mode (GUI)
+
+1. Select your main directory
+2. Check "Use Component Mode"
+3. Click "Configure Components"
+4. For each subdirectory, enter component names separated by commas (e.g., `beginning, middle, end`)
+5. Click "Save"
+6. Use Preview or Merge PDFs - directories without all components will be skipped
 
 ### Command-line Mode
 
@@ -64,6 +76,29 @@ python3 cli.py /path/to/main/directory --output "merged_{directory}_{datetime}.p
 # Verbose output with statistics
 python3 cli.py /path/to/main/directory --verbose --stats
 ```
+
+#### Component Mode (CLI)
+
+```bash
+# Configure components for directories
+python3 cli.py --set-components "Reports:beginning,middle,end"
+python3 cli.py --set-components "Invoices:intro,body,summary"
+
+# List all saved configurations
+python3 cli.py --list-configs
+
+# Preview with component mode
+python3 cli.py /path/to/main/directory --component-mode --preview --verbose
+
+# Merge with component mode
+python3 cli.py /path/to/main/directory --component-mode --verbose
+```
+
+Component mode will:
+- Only merge directories where ALL configured components are found
+- Merge files in the order specified by component configuration
+- Skip directories with missing components (with clear messages)
+- Continue processing remaining directories even if one fails
 
 ### File Patterns
 
@@ -87,13 +122,65 @@ Examples:
 - `merged_{directory}.pdf` → `merged_Reports.pdf`
 - `{directory}_combined_{datetime}.pdf` → `Reports_combined_2024-01-15_143022.pdf`
 
+### Component Mode
+
+Component mode allows you to define specific file name patterns (components) that must be present in each directory before merging. This ensures complete document sets are merged together.
+
+#### How It Works
+
+1. **Configure Components**: For each top-level directory (by name), define component patterns
+   - Example: `beginning, middle, end`
+   - Files are matched case-insensitively by pattern in filename
+
+2. **Validation**: Before merging, the tool checks if ALL components are present
+   - If any component is missing, a clear message is displayed
+   - The directory is skipped (no partial merge)
+
+3. **Ordered Merging**: Files are merged in the order you specify
+   - `beginning` files first, then `middle`, then `end`
+   - Within each component, files are sorted naturally
+
+4. **Continuous Processing**: The tool continues to the next directory even if previous ones had missing components
+
+#### Example
+
+```
+Main Directory/
+├── Reports/              (Config: beginning, middle, end)
+│   ├── beginning_report.pdf   ✓
+│   ├── middle_report.pdf      ✓
+│   └── end_report.pdf         ✓
+│   → Will merge in order
+│
+├── Invoices/             (Config: beginning, middle, end)
+│   ├── beginning_invoice.pdf  ✓
+│   └── end_invoice.pdf        ✓
+│   → Skipped - missing "middle"
+│
+└── Manuals/              (Config: beginning, middle, end)
+    ├── beginning_manual.pdf   ✓
+    ├── middle_manual.pdf      ✓
+    └── end_manual.pdf         ✓
+    → Will merge in order
+```
+
 ## How It Works
 
+The application supports two modes:
+
+### Pattern Mode (Default)
 1. **Directory Structure**: The application expects a main directory containing subdirectories
 2. **File Discovery**: In each subdirectory, it finds files matching your specified pattern
 3. **Sorting**: Files are sorted naturally (numbers are handled correctly)
 4. **Merging**: PDFs are combined into a single file in the same subdirectory
 5. **Naming**: Output file uses your specified template with date/time information
+
+### Component Mode
+1. **Configuration**: Define required components for each directory (e.g., "beginning, middle, end")
+2. **Validation**: Check that ALL configured components are present before merging
+3. **Ordered Discovery**: Find files matching each component pattern
+4. **Sequential Merging**: Merge files in the order specified by components
+5. **Smart Skipping**: Skip directories with missing components, continue with others
 
 Example directory structure:
 ```
